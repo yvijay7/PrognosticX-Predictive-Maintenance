@@ -1,0 +1,16 @@
+machine_name,cycle_or_hour,temperature_c,vibration_rms,rpm,pressure_bar,load_pct,operating_hours
+CNC-Alpha-01,1,53.8,1.65,1455,4.18,62.0,120.5
+CNC-Alpha-01,2,54.2,1.70,1452,4.20,63.5,122.5
+CNC-Alpha-01,3,55.0,1.75,1450,4.22,64.0,124.5
+CNC-Alpha-01,4,58.4,2.05,1445,4.30,68.0,126.5
+CNC-Alpha-01,5,78.2,3.10,1410,4.85,89.0,128.5
+CNC-Alpha-01,6,84.5,3.60,1390,5.10,93.5,130.5
+Robotic-Arm-Joint3,1,51.2,1.42,1460,4.10,55.0,80.0
+Robotic-Arm-Joint3,2,52.0,1.48,1458,4.12,56.5,82.0
+Robotic-Arm-Joint3,3,54.5,2.80,1440,4.25,65.0,84.0
+Robotic-Arm-Joint3,4,56.8,5.10,1370,4.35,68.0,86.0
+Robotic-Arm-Joint3,5,60.2,7.40,1330,4.45,72.0,88.0
+Extruder-Screw-Motor,1,56.0,1.80,1450,4.25,65.0,310.0
+Extruder-Screw-Motor,2,57.5,1.95,1445,4.32,67.0,312.0
+Extruder-Screw-Motor,3,61.0,4.20,1410,6.40,79.0,314.0
+Extruder-Screw-Motor,4,63.5,4.85,1395,6.85,83.0,316.0
