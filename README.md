@@ -2,13 +2,13 @@
 
 > **B.Tech Phase II Major Project Report & Implementation**  
 > **Institution:** St. John College of Engineering and Management, Palghar *(Autonomous Institute, University of Mumbai)*  
-> **Department:** Department of Computer Engineering (Academic Year 2025–2026)  
-> **Project Guide:** Ms. Deepika Nadar (Assistant Professor)  
+> **Department:** Department of AIML Engineering (Academic Year 2026-27)  
+> **Project Guide: ** Ms. Trusha Sankhe (Assistant Professor)  
 > **Project Team:**  
-> • Premprakash Gupta (EU1222081 / EU1222003)  
-> • Aman Kanu (EU1222015)  
-> • Rahul Singh (EU1222054)  
-> • Aayush Patil (EU1222081)  
+> • VIJAY YADAV (EU1236021)  
+> • YASHRAJ PATIL(EU1236009)  
+> • HARSH MHATRE (EU1236013)  
+ 
 
 ---
 
