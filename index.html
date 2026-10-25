@@ -1228,9 +1228,28 @@
           <div class="card-header">
             <div>
               <div class="card-title">PrognosticX AI Maintenance Assistant</div>
-              <div class="card-subtitle">Grounded in live machine telemetry, trained model predictions, and maintenance SOPs</div>
+              <div class="card-subtitle">Grounded in live machine telemetry, real-time degradation models, and Google Gemini Generative AI</div>
             </div>
-            <span class="kpi-status-badge badge-emerald">SLM CONVERSATIONAL AGENT ONLINE</span>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span class="kpi-status-badge badge-emerald" id="gemini-status-badge">✨ GEMINI 3.5 FLASH ONLINE</span>
+              <button class="btn btn-secondary" id="btn-toggle-gemini-key" style="font-size:11px; padding:4px 10px; display:flex; align-items:center; gap:5px;" title="Configure Gemini API Key">
+                🔑 Key Settings
+              </button>
+            </div>
+          </div>
+
+          <!-- Gemini API Key Live Configuration Bar (Collapsible/Configurable) -->
+          <div id="gemini-key-panel" class="gemini-config-bar" style="display:none;">
+            <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:260px;">
+              <span style="font-size:12px; font-weight:700; color:var(--accent-cyan); white-space:nowrap;">Gemini API Key:</span>
+              <input type="password" id="gemini-api-key-input" placeholder="AIzaSy... or AQ.Ab8..." style="flex:1; background:var(--bg-surface); border:1px solid var(--border-color); color:var(--text-main); padding:5px 10px; border-radius:4px; font-size:12px; font-family:monospace; outline:none;">
+              <button class="btn btn-secondary" id="btn-show-gemini-key" style="padding:4px 8px; font-size:11px;" title="Show/Hide Key">👁️</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="btn btn-secondary" id="btn-test-gemini-api" style="padding:4px 10px; font-size:11px;">⚡ Test API</button>
+              <button class="btn btn-primary" id="btn-save-gemini-key" style="padding:4px 12px; font-size:11px;">💾 Save Key</button>
+              <span id="gemini-test-result" style="font-size:11px; font-weight:600;"></span>
+            </div>
           </div>
 
           <!-- Suggested Quick Prompts -->

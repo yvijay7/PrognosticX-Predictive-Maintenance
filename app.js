@@ -2053,7 +2053,110 @@ function initAlertFilters() {
   });
 }
 
-// ================= GROUNDED AI MAINTENANCE CHATBOT =================
+// ================= GROUNDED AI MAINTENANCE CHATBOT (GEMINI POWERED) =================
+
+const GEMINI_CONFIG = {
+  defaultKey: "",
+  models: ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest"],
+  getKey() {
+    return localStorage.getItem("prognosticx_gemini_key") || this.defaultKey;
+  },
+  setKey(key) {
+    if (key && key.trim()) {
+      localStorage.setItem("prognosticx_gemini_key", key.trim());
+    } else {
+      localStorage.removeItem("prognosticx_gemini_key");
+    }
+  }
+};
+
+function formatMarkdownToHtml(text) {
+  if (!text) return "";
+  let html = text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/^### (.*$)/gim, '<h4>$1</h4>')
+    .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+    .replace(/^# (.*$)/gim, '<h2>$1</h2>')
+    .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+    .replace(/`([^`]+)`/gim, '<code>$1</code>')
+    .replace(/^---$/gim, '<hr>')
+    .replace(/^\* (.*$)/gim, '<li>$1</li>')
+    .replace(/^- (.*$)/gim, '<li>$1</li>')
+    .replace(/^\d+\.\s(.*$)/gim, '<li>$1</li>');
+
+  // Wrap loose <li> tags in <ul>
+  html = html.replace(/(<li>[\s\S]*?<\/li>)/gm, '<ul>$1</ul>');
+  // Fix adjacent unordered lists
+  html = html.replace(/<\/ul>\s*<ul>/g, '');
+  // Convert newlines to breaks where appropriate
+  html = html.replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+  return html;
+}
+
+async function queryGeminiAI(userQuery) {
+  const apiKey = GEMINI_CONFIG.getKey();
+  const p = state.prediction || {};
+  const t = state.telemetry || {};
+  const m = state.activeMachine || "MCH-001";
+  const mInfo = state.fleet[m] || {};
+
+  const systemContext = 
+    `You are PrognosticX AI Assistant, powered by Google Gemini.\n\n` +
+    `YOUR DUAL CAPABILITY INSTRUCTIONS:\n` +
+    `1. FOR MACHINERY / INDUSTRIAL / PROJECT QUESTIONS:\n` +
+    `   If the user asks about the equipment, telemetry, sensor readings, faults, RUL, machine health, or predictive maintenance, analyze and ground your answer in this live active machine telemetry:\n` +
+    `   - Active Asset: ${m} - ${mInfo.name || "Industrial Machine"} (${mInfo.type || "Rotating Equipment"})\n` +
+    `   - Temperature: ${t.temperature}°C (Normal: 40-65°C | Alarm: >75°C)\n` +
+    `   - Vibration RMS: ${t.vibration} mm/s (Normal: <3.2 mm/s | Critical: >4.8 mm/s)\n` +
+    `   - Rotational Speed: ${Math.round(t.rpm || 1450)} RPM | Fluid Pressure: ${t.pressure || 4.2} bar\n` +
+    `   - Operational Continuous Load: ${t.load}% (Normal: <75% | Warning: 75-85% | Severe: >85%)\n` +
+    `   - Total Cumulative Hours: ${t.operating_hours || 200} hrs (3,000 hrs baseline service life)\n` +
+    `   - Machine Health Score: ${p.healthScore || 100}% (${p.healthState || "Good"})\n` +
+    `   - Active Fault: ${p.faultName || "Normal Operation"} (Severity: ${p.severity || "LOW"}, Confidence: ${((p.confidence || 0.95)*100).toFixed(1)}%)\n` +
+    `   - Estimated Remaining Useful Life (RUL): ${p.predictedRul || 1000} Hours\n` +
+    `   - Time to Critical Margin (Health < 25%): ${p.timeToCritical || 500} Hours\n` +
+    `   - Maintenance Priority: ${p.priority || "LOW"} (Score: ${p.priorityScore || 20}/100)\n` +
+    `   - Contributing Factors: ${(p.contributingReasons || ["All within normal bands"]).join("; ")}\n` +
+    `   - Prescribed Action SOP: ${p.action || "Continue standard automated condition monitoring"}\n\n` +
+    `2. FOR GENERAL / EXTERNAL / ACADEMIC / CODING / OTHER QUESTIONS:\n` +
+    `   If the user asks anything outside of this industrial project (e.g. programming, mathematics, science, technology, general knowledge, explaining concepts, or everyday questions), answer it comprehensively, intelligently, and clearly without forcing machine telemetry into the answer.\n\n` +
+    `USER INQUIRY: "${userQuery}"\n\n` +
+    `Format your response cleanly with markdown (bold headings, bullet points where applicable).`;
+
+  for (const model of GEMINI_CONFIG.models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemContext }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 800
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (candidate) {
+          return {
+            success: true,
+            model: model,
+            html: formatMarkdownToHtml(candidate)
+          };
+        }
+      }
+    } catch (err) {
+      console.warn(`Gemini model ${model} request error:`, err);
+    }
+  }
+
+  return { success: false };
+}
 
 function initChatbot() {
   const form = document.getElementById("chat-form");
@@ -2061,7 +2164,91 @@ function initChatbot() {
   const sendBtn = document.getElementById("chat-send-btn");
   const messagesBox = document.getElementById("chat-messages-box");
 
-  function sendQuery(text) {
+  // Gemini API Key Management Elements
+  const toggleKeyBtn = document.getElementById("btn-toggle-gemini-key");
+  const keyPanel = document.getElementById("gemini-key-panel");
+  const keyInput = document.getElementById("gemini-api-key-input");
+  const showKeyBtn = document.getElementById("btn-show-gemini-key");
+  const saveKeyBtn = document.getElementById("btn-save-gemini-key");
+  const testApiBtn = document.getElementById("btn-test-gemini-api");
+  const testResult = document.getElementById("gemini-test-result");
+  const statusBadge = document.getElementById("gemini-status-badge");
+
+  // Prepopulate key input
+  if (keyInput) {
+    keyInput.value = GEMINI_CONFIG.getKey();
+  }
+
+  // Toggle API Key Panel
+  if (toggleKeyBtn && keyPanel) {
+    toggleKeyBtn.addEventListener("click", () => {
+      const isHidden = keyPanel.style.display === "none";
+      keyPanel.style.display = isHidden ? "flex" : "none";
+      if (isHidden && keyInput) keyInput.focus();
+    });
+  }
+
+  // Show / Hide Key Text
+  if (showKeyBtn && keyInput) {
+    showKeyBtn.addEventListener("click", () => {
+      keyInput.type = keyInput.type === "password" ? "text" : "password";
+      showKeyBtn.textContent = keyInput.type === "password" ? "👁️" : "🙈";
+    });
+  }
+
+  // Save Key to LocalStorage
+  if (saveKeyBtn && keyInput) {
+    saveKeyBtn.addEventListener("click", () => {
+      GEMINI_CONFIG.setKey(keyInput.value);
+      if (testResult) {
+        testResult.textContent = "Saved!";
+        testResult.style.color = "#10b981";
+        setTimeout(() => { testResult.textContent = ""; }, 2500);
+      }
+    });
+  }
+
+  // Test Gemini API Connection Live
+  if (testApiBtn && keyInput) {
+    testApiBtn.addEventListener("click", async () => {
+      const key = keyInput.value.trim() || GEMINI_CONFIG.getKey();
+      if (testResult) {
+        testResult.textContent = "Testing...";
+        testResult.style.color = "var(--accent-cyan)";
+      }
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: "Ping" }] }] })
+        });
+        if (res.ok) {
+          if (testResult) {
+            testResult.textContent = "Connected (Gemini 3.5 Flash)";
+            testResult.style.color = "#10b981";
+          }
+          if (statusBadge) {
+            statusBadge.textContent = "✨ GEMINI 3.5 FLASH ONLINE";
+            statusBadge.className = "kpi-status-badge badge-emerald";
+          }
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.error?.message?.slice(0, 45) || `HTTP ${res.status}`;
+          if (testResult) {
+            testResult.textContent = `Error: ${errMsg}`;
+            testResult.style.color = "#ef4444";
+          }
+        }
+      } catch (err) {
+        if (testResult) {
+          testResult.textContent = "Network Error";
+          testResult.style.color = "#ef4444";
+        }
+      }
+    });
+  }
+
+  async function sendQuery(text) {
     const q = (text || input.value || "").trim();
     if (!q) return;
 
@@ -2073,15 +2260,42 @@ function initChatbot() {
     input.value = "";
     messagesBox.scrollTop = messagesBox.scrollHeight;
 
-    // Generate grounded engineering response
-    setTimeout(() => {
-      const response = generateGroundedBotAnswer(q);
-      const botBubble = document.createElement("div");
-      botBubble.className = "chat-bubble bot";
-      botBubble.innerHTML = response;
-      messagesBox.appendChild(botBubble);
-      messagesBox.scrollTop = messagesBox.scrollHeight;
-    }, 400);
+    // Add temporary thinking / typing indicator bubble
+    const typingBubble = document.createElement("div");
+    typingBubble.className = "chat-bubble bot typing-bubble";
+    typingBubble.innerHTML = `✨ <em>Gemini AI is analyzing live telemetry &amp; calculating degradation trajectory...</em>`;
+    messagesBox.appendChild(typingBubble);
+    messagesBox.scrollTop = messagesBox.scrollHeight;
+
+    // Call live Google Gemini Generative AI API
+    const geminiRes = await queryGeminiAI(q);
+
+    // Remove typing indicator
+    if (typingBubble.parentNode) {
+      typingBubble.parentNode.removeChild(typingBubble);
+    }
+
+    const botBubble = document.createElement("div");
+    botBubble.className = "chat-bubble bot";
+
+    if (geminiRes && geminiRes.success) {
+      botBubble.innerHTML = 
+        `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:4px;">` +
+        `  <strong style="color:var(--accent-cyan); display:flex; align-items:center; gap:5px;">✨ Gemini AI Intelligence (${geminiRes.model})</strong>` +
+        `  <span style="font-size:10px; color:#10b981; background:rgba(16,185,129,0.1); padding:2px 6px; border-radius:3px;">LIVE API</span>` +
+        `</div>` + geminiRes.html;
+    } else {
+      // Fallback to grounded deterministic rule engine if offline
+      const fallbackAnswer = generateGroundedBotAnswer(q);
+      botBubble.innerHTML = 
+        `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:4px;">` +
+        `  <strong style="color:var(--text-main);">PrognosticX Grounded Engine</strong>` +
+        `  <span style="font-size:10px; color:var(--text-dim); background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:3px;">LOCAL SLM</span>` +
+        `</div>` + fallbackAnswer;
+    }
+
+    messagesBox.appendChild(botBubble);
+    messagesBox.scrollTop = messagesBox.scrollHeight;
   }
 
   sendBtn.addEventListener("click", () => sendQuery());

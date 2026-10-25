@@ -4,16 +4,24 @@ Provides contextual, engineering-grade chatbot answers strictly grounded in the
 current live telemetry, active fault detection predictions, and RUL calculations.
 """
 
-from typing import Dict, Any, List
+import os
+import json
+import urllib.request
+import urllib.error
+from typing import Dict, Any, List, Optional
 from ..agents.controller import OrchestrationController
 
+DEFAULT_GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+
 class MaintenanceChatService:
-    def __init__(self):
+    def __init__(self, gemini_api_key: Optional[str] = None):
         self.controller = OrchestrationController()
+        self.gemini_key = gemini_api_key or DEFAULT_GEMINI_KEY
         
-    def respond_to_query(self, query: str, machine_id: str, current_telemetry: Dict[str, float]) -> Dict[str, Any]:
+    def respond_to_query(self, query: str, machine_id: str, current_telemetry: Dict[str, float], api_key: Optional[str] = None) -> Dict[str, Any]:
         q = query.lower().strip()
         analysis = self.controller.execute_workflow(current_telemetry)
+        active_key = api_key or self.gemini_key
         
         health_summary = analysis["health_summary"]
         fault_detection = analysis["fault_detection"]
@@ -47,6 +55,17 @@ class MaintenanceChatService:
                 "maintenance_priority": f"{health_summary['maintenance_priority']} ({health_summary['maintenance_priority_score']}/100)"
             }
         }
+        
+        # Try live Google Gemini Generative AI first
+        if active_key:
+            gemini_reply = self._call_gemini_api(query, machine_id, current_telemetry, analysis, active_key)
+            if gemini_reply:
+                return {
+                    "query": query,
+                    "answer": gemini_reply,
+                    "source": "GEMINI_3.5_FLASH",
+                    "grounded_context": context_data
+                }
         
         # 1. "What is wrong with Machine A / What is the fault?"
         if any(w in q for w in ["what is wrong", "what's wrong", "fault", "problem", "issue", "status"]):
@@ -150,3 +169,51 @@ class MaintenanceChatService:
             "answer": answer_text,
             "grounded_context": context_data
         }
+
+    def _call_gemini_api(self, query: str, machine_id: str, telemetry: Dict[str, float], analysis: Dict[str, Any], api_key: str) -> Optional[str]:
+        models = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest"]
+        health = analysis.get("health_summary", {})
+        fault = analysis.get("fault_detection", {})
+        rul = analysis.get("rul_prediction", {})
+        plan = analysis.get("maintenance_plan", {})
+        
+        system_prompt = (
+            f"You are PrognosticX AI Assistant, powered by Google Gemini.\n\n"
+            f"YOUR DUAL CAPABILITIES:\n"
+            f"1. FOR MACHINERY / INDUSTRIAL / PROJECT INQUIRIES:\n"
+            f"   Ground your analysis in this live telemetry for asset {machine_id}:\n"
+            f"   - Temperature: {telemetry.get('temperature', 55)}°C (Safe: 40-65°C | Alarm: >75°C)\n"
+            f"   - Vibration RMS: {telemetry.get('vibration', 1.8)} mm/s (Safe: <3.2 mm/s | Critical: >4.8 mm/s)\n"
+            f"   - Speed: {telemetry.get('rpm', 1450)} RPM | Pressure: {telemetry.get('pressure', 4.2)} bar\n"
+            f"   - Continuous Load: {telemetry.get('load', 65)}% | Operating Hours: {telemetry.get('operating_hours', 200)} hrs\n"
+            f"   - Health Score: {health.get('health_score')}% ({health.get('health_state')})\n"
+            f"   - Active Fault: {fault.get('fault_name')} (Severity: {fault.get('severity')}, Confidence: {round(fault.get('confidence', 0.95)*100, 1)}%)\n"
+            f"   - Predicted RUL: {health.get('predicted_rul_hours')} Hours\n"
+            f"   - Maintenance Priority: {health.get('maintenance_priority')} ({health.get('maintenance_priority_score')}/100)\n"
+            f"   - Contributing Factors: {', '.join(fault.get('contributing_reasons', []))}\n"
+            f"   - Prescribed SOP: {plan.get('recommended_action')}\n\n"
+            f"2. FOR GENERAL / EXTERNAL / CODING / SCIENCE / OTHER INQUIRIES:\n"
+            f"   If the question is outside of this industrial project, answer it directly, helpfully, and comprehensively without restricting yourself to the machine data.\n\n"
+            f"User Question: \"{query}\"\n\n"
+            f"Format response clearly with markdown."
+        )
+        
+        payload = json.dumps({
+            "contents": [{"parts": [{"text": system_prompt}]}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 800}
+        }).encode("utf-8")
+        
+        for model in models:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        candidate = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text")
+                        if candidate:
+                            return candidate
+            except Exception:
+                continue
+        return None
+

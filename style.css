@@ -719,6 +719,52 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-main);
 }
+.chat-bubble.bot h3, .chat-bubble.bot h4 {
+  margin: 8px 0 4px 0;
+  color: var(--accent-cyan);
+  font-size: 13.5px;
+}
+.chat-bubble.bot ul, .chat-bubble.bot ol {
+  margin: 6px 0 6px 18px;
+  padding: 0;
+}
+.chat-bubble.bot li {
+  margin-bottom: 4px;
+}
+.chat-bubble.bot hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 8px 0;
+}
+.chat-bubble.bot code {
+  background: rgba(0, 242, 254, 0.1);
+  color: var(--accent-cyan);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.typing-bubble {
+  color: var(--text-muted) !important;
+  font-style: italic;
+  animation: pulse-dim 1.5s infinite;
+}
+@keyframes pulse-dim {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.gemini-config-bar {
+  background: rgba(0, 242, 254, 0.05);
+  border: 1px solid rgba(0, 242, 254, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 
 .chat-bubble.user {
   align-self: flex-end;

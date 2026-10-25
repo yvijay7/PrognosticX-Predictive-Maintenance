@@ -60,6 +60,7 @@ class ChatRequest(BaseModel):
     query: str
     machine_id: Optional[str] = "MCH-001"
     current_telemetry: Dict[str, float]
+    api_key: Optional[str] = None
 
 # Endpoints
 
@@ -228,7 +229,8 @@ def maintenance_chat(req: ChatRequest):
     return chat_service.respond_to_query(
         query=req.query,
         machine_id=req.machine_id or "MCH-001",
-        current_telemetry=req.current_telemetry
+        current_telemetry=req.current_telemetry,
+        api_key=req.api_key
     )
 
 # ⭐ NOVELTY 4: NASA C-MAPSS Dataset & CSV Telemetry Ingestion
