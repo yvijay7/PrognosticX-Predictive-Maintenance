@@ -2124,6 +2124,8 @@ async function queryGeminiAI(userQuery) {
     `USER INQUIRY: "${userQuery}"\n\n` +
     `Format your response cleanly with markdown (bold headings, bullet points where applicable).`;
 
+  let lastError = null;
+
   for (const model of GEMINI_CONFIG.models) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -2133,7 +2135,7 @@ async function queryGeminiAI(userQuery) {
         body: JSON.stringify({
           contents: [{ parts: [{ text: systemContext }] }],
           generationConfig: {
-            temperature: 0.2,
+            temperature: 0.3,
             maxOutputTokens: 800
           }
         })
@@ -2149,13 +2151,17 @@ async function queryGeminiAI(userQuery) {
             html: formatMarkdownToHtml(candidate)
           };
         }
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        lastError = errData.error?.message || `HTTP ${response.status}`;
       }
     } catch (err) {
+      lastError = err.message || "Network Error";
       console.warn(`Gemini model ${model} request error:`, err);
     }
   }
 
-  return { success: false };
+  return { success: false, error: lastError };
 }
 
 function initChatbot() {
@@ -2212,6 +2218,13 @@ function initChatbot() {
   if (testApiBtn && keyInput) {
     testApiBtn.addEventListener("click", async () => {
       const key = keyInput.value.trim() || GEMINI_CONFIG.getKey();
+      if (!key) {
+        if (testResult) {
+          testResult.textContent = "Please enter an API key";
+          testResult.style.color = "#ef4444";
+        }
+        return;
+      }
       if (testResult) {
         testResult.textContent = "Testing...";
         testResult.style.color = "var(--accent-cyan)";
@@ -2260,10 +2273,25 @@ function initChatbot() {
     input.value = "";
     messagesBox.scrollTop = messagesBox.scrollHeight;
 
+    const apiKey = GEMINI_CONFIG.getKey();
+
+    // If no key is entered, prompt user directly
+    if (!apiKey) {
+      const botBubble = document.createElement("div");
+      botBubble.className = "chat-bubble bot";
+      botBubble.innerHTML = 
+        `<div style="color:#f59e0b; margin-bottom:6px; font-weight:700;">🔑 Gemini API Key Chahiye:</div>` +
+        `Realistic Gemini answers paane ke liye top-right me <strong>🔑 Key Settings</strong> par click karke apni Google Gemini API Key paste kijiye (Free at <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent-cyan); text-decoration:underline;">aistudio.google.com/apikey</a>).<br><br>` +
+        `<em>(Valid Gemini key hamesha <code>AIzaSy...</code> se start hoti hai).</em>`;
+      messagesBox.appendChild(botBubble);
+      messagesBox.scrollTop = messagesBox.scrollHeight;
+      return;
+    }
+
     // Add temporary thinking / typing indicator bubble
     const typingBubble = document.createElement("div");
     typingBubble.className = "chat-bubble bot typing-bubble";
-    typingBubble.innerHTML = `✨ <em>Gemini AI is analyzing live telemetry &amp; calculating degradation trajectory...</em>`;
+    typingBubble.innerHTML = `✨ <em>Gemini AI sooch raha hai aur realistic jawaab formulate kar raha hai...</em>`;
     messagesBox.appendChild(typingBubble);
     messagesBox.scrollTop = messagesBox.scrollHeight;
 
@@ -2281,17 +2309,19 @@ function initChatbot() {
     if (geminiRes && geminiRes.success) {
       botBubble.innerHTML = 
         `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:4px;">` +
-        `  <strong style="color:var(--accent-cyan); display:flex; align-items:center; gap:5px;">✨ Gemini AI Intelligence (${geminiRes.model})</strong>` +
-        `  <span style="font-size:10px; color:#10b981; background:rgba(16,185,129,0.1); padding:2px 6px; border-radius:3px;">LIVE API</span>` +
+        `  <strong style="color:var(--accent-cyan); display:flex; align-items:center; gap:5px;">✨ Gemini AI (${geminiRes.model})</strong>` +
+        `  <span style="font-size:10px; color:#10b981; background:rgba(16,185,129,0.1); padding:2px 6px; border-radius:3px;">LIVE GEMINI</span>` +
         `</div>` + geminiRes.html;
     } else {
-      // Fallback to grounded deterministic rule engine if offline
-      const fallbackAnswer = generateGroundedBotAnswer(q);
+      // Show exact Gemini API error
       botBubble.innerHTML = 
-        `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:4px;">` +
-        `  <strong style="color:var(--text-main);">PrognosticX Grounded Engine</strong>` +
-        `  <span style="font-size:10px; color:var(--text-dim); background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:3px;">LOCAL SLM</span>` +
-        `</div>` + fallbackAnswer;
+        `<div style="color:#ef4444; margin-bottom:6px; font-weight:700;">❌ Gemini API Error (${geminiRes.error || "Authentication Failed"}):</div>` +
+        `Aapki enter ki gayi key Google dwara reject ho gayi hai.<br>` +
+        `<em>Wajah:</em> Google ka official Gemini API Key hamesha <strong><code>AIzaSy...</code></strong> se shuru hota hai (jaise: <code>AIzaSyD-xxx...</code>). Jo key <code>AQ...</code> se shuru hoti hai wo temporary token hoti hai jo yahan accept nahi hoti.<br><br>` +
+        `<strong>Sirf 30 second me real key lijiye:</strong><br>` +
+        `1. <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent-cyan); font-weight:700; text-decoration:underline;">aistudio.google.com/apikey</a> par jaakar <strong>Create API Key</strong> dabaiye.<br>` +
+        `2. Top-right me <strong>🔑 Key Settings</strong> me paste karke <strong>💾 Save Key</strong> dabaiye.<br>` +
+        `Uske baad Gemini bilkul real ChatGPT/Gemini ki tarah har question ka exact realistic jawaab dega!`;
     }
 
     messagesBox.appendChild(botBubble);
